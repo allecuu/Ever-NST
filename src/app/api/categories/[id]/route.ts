@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAdmin } from "@/lib/auth"
-import { productUpdateSchema } from "@/lib/validations"
+import { categorySchema } from "@/lib/validations"
 
 export async function GET(
   _req: NextRequest,
@@ -9,13 +9,13 @@ export async function GET(
 ) {
   const { id } = await params
 
-  const product = await prisma.product.findFirst({
-    where: { OR: [{ id }, { slug: id }], isActive: true },
-    include: { category: true },
+  const category = await prisma.category.findFirst({
+    where: { OR: [{ id }, { slug: id }] },
+    include: { products: { where: { isActive: true }, include: { category: true } } },
   })
 
-  if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  return NextResponse.json(product)
+  if (!category) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  return NextResponse.json(category)
 }
 
 export async function PUT(
@@ -27,39 +27,29 @@ export async function PUT(
 
   const { id } = await params
   const body = await req.json()
-  const parsed = productUpdateSchema.safeParse(body)
+  const parsed = categorySchema.partial().safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const product = await prisma.product.update({
+  const category = await prisma.category.update({
     where: { id },
     data: parsed.data,
-    include: { category: true },
   })
 
-  return NextResponse.json(product)
+  return NextResponse.json(category)
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { error } = await requireAdmin()
   if (error) return error
 
   const { id } = await params
-  const hard = req.nextUrl.searchParams.get("hard") === "true"
 
-  if (hard) {
-    await prisma.product.delete({ where: { id } })
-    return NextResponse.json({ deleted: true })
-  }
+  await prisma.category.delete({ where: { id } })
 
-  const product = await prisma.product.update({
-    where: { id },
-    data: { isActive: false },
-  })
-
-  return NextResponse.json(product)
+  return NextResponse.json({ deleted: true })
 }

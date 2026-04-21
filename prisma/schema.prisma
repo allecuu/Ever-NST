@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -15,11 +15,16 @@ model User {
   image         String?
   password      String?
   role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
   orders        Order[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
 }
 
 model Account {
@@ -28,12 +33,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -57,27 +62,30 @@ model VerificationToken {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
 }
 
 model Product {
   id          String      @id @default(cuid())
   name        String
   slug        String      @unique
-  description String?
+  description String?     @db.Text
   price       Decimal     @db.Decimal(10, 2)
   stock       Int         @default(0)
   images      String[]
-  categoryId  String?
-  category    Category?   @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
+  features    String[]
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
 }
 
 model Order {
@@ -87,29 +95,27 @@ model Order {
   status    OrderStatus @default(PENDING)
   total     Decimal     @db.Decimal(10, 2)
   items     OrderItem[]
+  address   String?
+  phone     String?
+  notes     String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
 
 model OrderItem {
   id        String  @id @default(cuid())
   orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order   @relation(fields: [orderId], references: [id])
   productId String
   product   Product @relation(fields: [productId], references: [id])
   quantity  Int
   price     Decimal @db.Decimal(10, 2)
-}
-
-enum Role {
-  USER
-  ADMIN
-}
-
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
 }
