@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import Link from "next/link"
 import { Package, ShoppingBag, TrendingUp, Users, Plus, ArrowRight } from "lucide-react"
 
@@ -19,31 +19,34 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default async function AdminPage() {
-  const [productCount, orderCount, userCount, revenueResult, recentOrders] = await Promise.all([
-    prisma.product.count({ where: { isActive: true } }),
-    prisma.order.count(),
-    prisma.user.count(),
-    prisma.order.aggregate({
-      _sum: { total: true },
-      where: { status: { in: ["CONFIRMED", "SHIPPED", "DELIVERED"] } },
-    }),
-    prisma.order.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { name: true, email: true } },
-        items: { select: { id: true } },
-      },
-    }),
+  const [
+    { count: productCount },
+    { count: orderCount },
+    { count: userCount },
+    { data: revenueOrders },
+    { data: recentOrders },
+  ] = await Promise.all([
+    supabaseAdmin.from("Product").select("*", { count: "exact", head: true }).eq("isActive", true),
+    supabaseAdmin.from("Order").select("*", { count: "exact", head: true }),
+    supabaseAdmin.from("User").select("*", { count: "exact", head: true }),
+    supabaseAdmin
+      .from("Order")
+      .select("total")
+      .in("status", ["CONFIRMED", "SHIPPED", "DELIVERED"]),
+    supabaseAdmin
+      .from("Order")
+      .select("*, user:User(name, email), items:OrderItem(id)")
+      .order("createdAt", { ascending: false })
+      .limit(5),
   ])
 
-  const revenue = Number(revenueResult._sum.total ?? 0)
+  const revenue = (revenueOrders ?? []).reduce((sum, o) => sum + Number(o.total), 0)
 
   const stats = [
-    { label: "Produse active", value: productCount, icon: Package, bg: "bg-green-50", fg: "text-green-600" },
-    { label: "Total comenzi", value: orderCount, icon: ShoppingBag, bg: "bg-blue-50", fg: "text-blue-600" },
+    { label: "Produse active", value: productCount ?? 0, icon: Package, bg: "bg-green-50", fg: "text-green-600" },
+    { label: "Total comenzi", value: orderCount ?? 0, icon: ShoppingBag, bg: "bg-blue-50", fg: "text-blue-600" },
     { label: "Venituri", value: `${revenue.toLocaleString("ro-RO")} RON`, icon: TrendingUp, bg: "bg-purple-50", fg: "text-purple-600" },
-    { label: "Utilizatori", value: userCount, icon: Users, bg: "bg-orange-50", fg: "text-orange-600" },
+    { label: "Utilizatori", value: userCount ?? 0, icon: Users, bg: "bg-orange-50", fg: "text-orange-600" },
   ]
 
   return (
@@ -91,23 +94,23 @@ export default async function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentOrders.length === 0 ? (
+                {(recentOrders ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-10 text-center text-gray-400">
                       Nicio comandă momentan
                     </td>
                   </tr>
                 ) : (
-                  recentOrders.map((order) => (
+                  (recentOrders ?? []).map((order) => (
                     <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs text-gray-500">
                         #{order.id.slice(-8).toUpperCase()}
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{order.user.name ?? "—"}</p>
-                        <p className="text-xs text-gray-400">{order.user.email}</p>
+                        <p className="font-medium text-gray-900">{order.user?.name ?? "—"}</p>
+                        <p className="text-xs text-gray-400">{order.user?.email}</p>
                       </td>
-                      <td className="px-6 py-4 text-gray-500">{order.items.length} buc.</td>
+                      <td className="px-6 py-4 text-gray-500">{order.items?.length ?? 0} buc.</td>
                       <td className="px-6 py-4 font-semibold">
                         {Number(order.total).toLocaleString("ro-RO")} RON
                       </td>

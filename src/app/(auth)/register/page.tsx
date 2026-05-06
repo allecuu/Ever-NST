@@ -47,10 +47,15 @@ export default function RegisterPage() {
       }),
     })
 
-    const json = await res.json()
+    let json: { error?: string; success?: boolean } = {}
+    try {
+      json = await res.json()
+    } catch {
+      // empty or non-JSON body
+    }
 
     if (!res.ok) {
-      setServerError(json.error ?? "A apărut o eroare")
+      setServerError(json.error ?? "A apărut o eroare. Încearcă din nou.")
       return
     }
 

@@ -1,8 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { loginSchema } from "@/lib/validations"
 import bcrypt from "bcryptjs"
 import { NextResponse } from "next/server"
@@ -35,7 +34,6 @@ declare module "next-auth" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -50,10 +48,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = loginSchema.safeParse(credentials)
         if (!parsed.success) return null
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
-        })
-        if (!user?.password) return null
+        const { data: user, error } = await supabaseAdmin
+          .from("User")
+          .select("id, email, name, image, password, role")
+          .eq("email", parsed.data.email)
+          .maybeSingle()
+
+        if (error || !user?.password) return null
 
         const valid = await bcrypt.compare(parsed.data.password, user.password)
         if (!valid) return null

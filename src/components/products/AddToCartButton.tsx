@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ShoppingCart, Check } from "lucide-react"
 import { useCartStore } from "@/store/cart"
 
@@ -8,7 +8,7 @@ type Props = {
   product: {
     id: string
     name: string
-    price: number | string | { toString(): string }
+    price: number | string
     images: string[]
     slug: string
     stock: number
@@ -19,6 +19,13 @@ type Props = {
 export default function AddToCartButton({ product, quantity = 1 }: Props) {
   const { addItem, openCart } = useCartStore()
   const [added, setAdded] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   if (product.stock === 0) {
     return (
@@ -40,7 +47,8 @@ export default function AddToCartButton({ product, quantity = 1 }: Props) {
     })
     setAdded(true)
     openCart()
-    setTimeout(() => setAdded(false), 2000)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setAdded(false), 2000)
   }
 
   return (

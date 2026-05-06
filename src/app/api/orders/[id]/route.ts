@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { auth, requireAdmin } from "@/lib/auth"
 import { orderStatusSchema } from "@/lib/validations"
 
@@ -12,13 +12,11 @@ export async function GET(
 
   const { id } = await params
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      items: { include: { product: true } },
-      user: { select: { id: true, name: true, email: true } },
-    },
-  })
+  const { data: order } = await supabaseAdmin
+    .from("Order")
+    .select("*, items:OrderItem(*, product:Product(*)), user:User(id, name, email)")
+    .eq("id", id)
+    .maybeSingle()
 
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -43,11 +41,16 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const order = await prisma.order.update({
-    where: { id },
-    data: { status: parsed.data.status },
-    include: { items: true },
-  })
+  const { data: order, error: updateError } = await supabaseAdmin
+    .from("Order")
+    .update({ status: parsed.data.status, updatedAt: new Date().toISOString() })
+    .eq("id", id)
+    .select("*, items:OrderItem(*)")
+    .single()
+
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
 
   return NextResponse.json(order)
 }

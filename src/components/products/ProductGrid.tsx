@@ -4,7 +4,7 @@ type Product = {
   id: string
   name: string
   slug: string
-  price: number | string | { toString(): string }
+  price: number | string
   stock: number
   images: string[]
   category?: { name: string } | null

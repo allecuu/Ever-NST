@@ -1,12 +1,16 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import ProductForm from "@/components/admin/ProductForm"
 import type { Category } from "@/types"
 
 export default async function NewProductPage() {
-  const raw = await prisma.category.findMany({ orderBy: { name: "asc" } })
-  const categories: Category[] = raw.map((c: typeof raw[0]) => ({
+  const { data: raw } = await supabaseAdmin
+    .from("Category")
+    .select("id, name, slug, description, image, createdAt")
+    .order("name", { ascending: true })
+
+  const categories: Category[] = (raw ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     slug: c.slug,

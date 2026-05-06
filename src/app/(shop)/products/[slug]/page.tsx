@@ -1,30 +1,36 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import ProductGallery from "@/components/products/ProductGallery"
 import AddToCartButton from "@/components/products/AddToCartButton"
 import ProductGrid from "@/components/products/ProductGrid"
-import { Check, Minus, Plus } from "lucide-react"
+import { Check } from "lucide-react"
 import { Suspense } from "react"
 import QuantitySelector from "./QuantitySelector"
 
 async function getProduct(slug: string) {
   try {
-    return await prisma.product.findFirst({
-      where: { OR: [{ slug }, { id: slug }], isActive: true },
-      include: { category: true },
-    })
+    const { data: products } = await supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)")
+      .or(`id.eq.${slug},slug.eq.${slug}`)
+      .eq("isActive", true)
+      .limit(1)
+    return products?.[0] ?? null
   } catch { return null }
 }
 
 async function getRelated(categoryId: string, excludeId: string) {
   try {
-    return await prisma.product.findMany({
-      where: { categoryId, id: { not: excludeId }, isActive: true },
-      take: 4,
-      include: { category: true },
-    })
+    const { data } = await supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)")
+      .eq("categoryId", categoryId)
+      .neq("id", excludeId)
+      .eq("isActive", true)
+      .limit(4)
+    return data ?? []
   } catch { return [] }
 }
 

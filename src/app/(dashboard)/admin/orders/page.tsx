@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import Link from "next/link"
 import { Eye } from "lucide-react"
 import OrderStatusSelect from "@/components/admin/OrderStatusSelect"
@@ -37,22 +37,18 @@ export default async function AdminOrdersPage({
   const statusFilter = sp.status ?? "all"
   const page = Math.max(1, Number(sp.page ?? "1"))
 
-  const where = statusFilter !== "all" ? { status: statusFilter as OrderStatus } : {}
+  let query = supabaseAdmin
+    .from("Order")
+    .select("*, user:User(name, email), items:OrderItem(id)", { count: "exact" })
+    .order("createdAt", { ascending: false })
+    .range((page - 1) * LIMIT, page * LIMIT - 1)
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * LIMIT,
-      take: LIMIT,
-      include: {
-        user: { select: { name: true, email: true } },
-        items: { select: { id: true } },
-      },
-    }),
-    prisma.order.count({ where }),
-  ])
+  if (statusFilter !== "all") {
+    query = query.eq("status", statusFilter)
+  }
 
+  const { data: orders, count } = await query
+  const total = count ?? 0
   const totalPages = Math.ceil(total / LIMIT)
 
   const buildUrl = (params: Record<string, string>) => {
@@ -103,7 +99,7 @@ export default async function AdminOrdersPage({
               </tr>
             </thead>
             <tbody>
-              {orders.length === 0 ? (
+              {(orders ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                     Nicio comandă
@@ -111,14 +107,14 @@ export default async function AdminOrdersPage({
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => (
+                (orders ?? []).map((order) => (
                   <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-gray-500">
                       #{order.id.slice(-8).toUpperCase()}
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{order.user.name ?? "—"}</p>
-                      <p className="text-xs text-gray-400">{order.user.email}</p>
+                      <p className="font-medium text-gray-900">{order.user?.name ?? "—"}</p>
+                      <p className="text-xs text-gray-400">{order.user?.email}</p>
                     </td>
                     <td className="px-6 py-4 text-gray-500">
                       {new Date(order.createdAt).toLocaleDateString("ro-RO", {
@@ -127,7 +123,7 @@ export default async function AdminOrdersPage({
                         year: "numeric",
                       })}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">{order.items.length} buc.</td>
+                    <td className="px-6 py-4 text-gray-500">{order.items?.length ?? 0} buc.</td>
                     <td className="px-6 py-4 font-semibold">
                       {Number(order.total).toLocaleString("ro-RO")} RON
                     </td>

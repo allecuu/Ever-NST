@@ -1,22 +1,19 @@
-import type { Decimal } from "@prisma/client-runtime-utils"
-
 export type Role = "USER" | "ADMIN"
-export type { Decimal }
 
 export type Product = {
   id: string
   name: string
   slug: string
   description?: string
-  price: number | Decimal
+  price: number | string
   stock: number
   images: string[]
   features: string[]
   categoryId: string
   category?: Category
   isActive: boolean
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export type Category = {
@@ -25,20 +22,20 @@ export type Category = {
   slug: string
   description?: string
   image?: string
-  createdAt: Date
+  createdAt: Date | string
 }
 
 export type Order = {
   id: string
   userId: string
   status: OrderStatus
-  total: number | Decimal
+  total: number | string
   items: OrderItem[]
   address?: string
   phone?: string
   notes?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export type OrderItem = {
@@ -46,7 +43,7 @@ export type OrderItem = {
   orderId: string
   productId: string
   quantity: number
-  price: number | Decimal
+  price: number | string
 }
 
 export type OrderStatus = "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELLED"

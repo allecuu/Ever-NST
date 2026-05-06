@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { ShoppingBag, ArrowRight } from "lucide-react"
@@ -24,11 +24,11 @@ export default async function AccountPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  const orders = await prisma.order.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    include: { items: { select: { id: true } } },
-  })
+  const { data: orders } = await supabaseAdmin
+    .from("Order")
+    .select("id, total, status, createdAt, items:OrderItem(id)")
+    .eq("userId", session.user.id)
+    .order("createdAt", { ascending: false })
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -44,7 +44,7 @@ export default async function AccountPage() {
           <ShoppingBag size={18} className="text-gray-400" />
           <h2 className="font-semibold text-gray-900">Comenzile mele</h2>
         </div>
-        {orders.length === 0 ? (
+        {(orders ?? []).length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-gray-400 mb-4">Nu ai nicio comandă plasată</p>
             <Link
@@ -57,7 +57,7 @@ export default async function AccountPage() {
           </div>
         ) : (
           <div className="divide-y">
-            {orders.map((order) => (
+            {(orders ?? []).map((order) => (
               <div key={order.id} className="p-6 flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-gray-900 font-mono text-sm">
@@ -69,7 +69,7 @@ export default async function AccountPage() {
                       month: "long",
                       year: "numeric",
                     })}{" "}
-                    · {order.items.length} produs(e)
+                    · {order.items?.length ?? 0} produs(e)
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

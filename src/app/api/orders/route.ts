@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
 import { orderSchema } from "@/lib/validations"
+import { randomUUID } from "node:crypto"
 
 export async function GET() {
   const session = await auth()
@@ -9,16 +10,21 @@ export async function GET() {
 
   const isAdmin = session.user.role === "ADMIN"
 
-  const orders = await prisma.order.findMany({
-    where: isAdmin ? {} : { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      items: { include: { product: { select: { id: true, name: true, images: true } } } },
-      ...(isAdmin && { user: { select: { id: true, name: true, email: true } } }),
-    },
-  })
+  let query = supabaseAdmin
+    .from("Order")
+    .select(
+      isAdmin
+        ? "*, items:OrderItem(*, product:Product(id, name, images)), user:User(id, name, email)"
+        : "*, items:OrderItem(*, product:Product(id, name, images))"
+    )
+    .order("createdAt", { ascending: false })
 
-  return NextResponse.json(orders)
+  if (!isAdmin) {
+    query = query.eq("userId", session.user.id)
+  }
+
+  const { data: orders } = await query
+  return NextResponse.json(orders ?? [])
 }
 
 export async function POST(req: NextRequest) {
@@ -32,18 +38,20 @@ export async function POST(req: NextRequest) {
   }
 
   const { items, address, phone, notes } = parsed.data
-
   const productIds = items.map((i) => i.productId)
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, isActive: true },
-  })
 
-  if (products.length !== productIds.length) {
+  const { data: products } = await supabaseAdmin
+    .from("Product")
+    .select("id, name, price, stock")
+    .in("id", productIds)
+    .eq("isActive", true)
+
+  if (!products || products.length !== productIds.length) {
     return NextResponse.json({ error: "Unul sau mai multe produse nu există" }, { status: 400 })
   }
 
   for (const item of items) {
-    const product = products.find((p: { id: string }) => p.id === item.productId)!
+    const product = products.find((p) => p.id === item.productId)!
     if (product.stock < item.quantity) {
       return NextResponse.json(
         { error: `Stoc insuficient pentru "${product.name}"` },
@@ -53,38 +61,56 @@ export async function POST(req: NextRequest) {
   }
 
   const total = items.reduce((sum, item) => {
-    const product = products.find((p: { id: string; price: unknown }) => p.id === item.productId)!
+    const product = products.find((p) => p.id === item.productId)!
     return sum + Number(product.price) * item.quantity
   }, 0)
 
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
-      data: {
-        userId: session.user.id,
-        total,
-        address,
-        phone,
-        notes,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: Number(products.find((p: { id: string; price: unknown }) => p.id === item.productId)!.price),
-          })),
-        },
-      },
-      include: { items: true },
+  const now = new Date().toISOString()
+  const orderId = randomUUID()
+
+  const { data: order, error: orderError } = await supabaseAdmin
+    .from("Order")
+    .insert({
+      id: orderId,
+      userId: session.user.id,
+      total,
+      address,
+      phone: phone ?? null,
+      notes: notes ?? null,
+      status: "PENDING",
+      createdAt: now,
+      updatedAt: now,
     })
+    .select()
+    .single()
 
-    for (const item of items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      })
-    }
+  if (orderError || !order) {
+    return NextResponse.json({ error: "Eroare la plasarea comenzii" }, { status: 500 })
+  }
 
-    return created
-  })
+  const orderItems = items.map((item) => ({
+    id: randomUUID(),
+    orderId,
+    productId: item.productId,
+    quantity: item.quantity,
+    price: Number(products.find((p) => p.id === item.productId)!.price),
+    createdAt: now,
+  }))
 
-  return NextResponse.json(order, { status: 201 })
+  const { error: itemsError } = await supabaseAdmin.from("OrderItem").insert(orderItems)
+
+  if (itemsError) {
+    await supabaseAdmin.from("Order").delete().eq("id", orderId)
+    return NextResponse.json({ error: "Eroare la plasarea comenzii" }, { status: 500 })
+  }
+
+  for (const item of items) {
+    const product = products.find((p) => p.id === item.productId)!
+    await supabaseAdmin
+      .from("Product")
+      .update({ stock: product.stock - item.quantity, updatedAt: now })
+      .eq("id", item.productId)
+  }
+
+  return NextResponse.json({ ...order, items: orderItems }, { status: 201 })
 }

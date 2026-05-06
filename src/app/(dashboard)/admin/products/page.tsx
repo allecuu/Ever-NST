@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import Link from "next/link"
 import Image from "next/image"
 import { Plus, Search } from "lucide-react"
@@ -24,30 +24,23 @@ export default async function AdminProductsPage({
   const status = sp.status ?? "all"
   const page = Math.max(1, Number(sp.page ?? "1"))
 
-  const where = {
-    ...(search && {
-      OR: [
-        { name: { contains: search, mode: "insensitive" as const } },
-        { slug: { contains: search, mode: "insensitive" as const } },
-      ],
-    }),
-    ...(categoryId && { categoryId }),
-    ...(status === "active" && { isActive: true }),
-    ...(status === "inactive" && { isActive: false }),
-  }
+  let query = supabaseAdmin
+    .from("Product")
+    .select("*, category:Category(name)", { count: "exact" })
+    .order("createdAt", { ascending: false })
+    .range((page - 1) * LIMIT, page * LIMIT - 1)
 
-  const [products, total, categories] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * LIMIT,
-      take: LIMIT,
-      include: { category: { select: { name: true } } },
-    }),
-    prisma.product.count({ where }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  if (search) query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`)
+  if (categoryId) query = query.eq("categoryId", categoryId)
+  if (status === "active") query = query.eq("isActive", true)
+  if (status === "inactive") query = query.eq("isActive", false)
+
+  const [{ data: products, count }, { data: categories }] = await Promise.all([
+    query,
+    supabaseAdmin.from("Category").select("id, name").order("name", { ascending: true }),
   ])
 
+  const total = count ?? 0
   const totalPages = Math.ceil(total / LIMIT)
 
   const buildUrl = (params: Record<string, string>) => {
@@ -116,15 +109,6 @@ export default async function AdminProductsPage({
               </Link>
             ))}
           </div>
-
-          {categories.length > 0 && (
-            <Link
-              href={buildUrl({ categoryId: "" })}
-              className="sr-only"
-            >
-              reset
-            </Link>
-          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -140,14 +124,14 @@ export default async function AdminProductsPage({
               </tr>
             </thead>
             <tbody>
-              {products.length === 0 ? (
+              {(products ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                     Niciun produs găsit
                   </td>
                 </tr>
               ) : (
-                products.map((product) => (
+                (products ?? []).map((product) => (
                   <tr key={product.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -170,7 +154,7 @@ export default async function AdminProductsPage({
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{product.category.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{product.category?.name ?? "—"}</td>
                     <td className="px-4 py-3 font-medium">
                       {Number(product.price).toLocaleString("ro-RO")} RON
                     </td>

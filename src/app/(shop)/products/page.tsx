@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import ProductGrid from "@/components/products/ProductGrid"
 import ProductFilters from "@/components/products/ProductFilters"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -19,49 +19,50 @@ async function getProducts(params: SearchParams) {
   const page = Math.max(1, Number(str(params.page) ?? "1"))
   const limit = 12
 
-  let categoryId: string | undefined
-  if (categorySlug) {
-    const cat = await prisma.category.findUnique({ where: { slug: categorySlug } })
-    categoryId = cat?.id
-  }
-
-  const where = {
-    isActive: true,
-    ...(categoryId && { categoryId }),
-    ...(inStock && { stock: { gt: 0 } }),
-    ...(search && {
-      OR: [
-        { name: { contains: search, mode: "insensitive" as const } },
-        { description: { contains: search, mode: "insensitive" as const } },
-      ],
-    }),
-    ...((minPrice || maxPrice) && {
-      price: {
-        ...(minPrice && { gte: Number(minPrice) }),
-        ...(maxPrice && { lte: Number(maxPrice) }),
-      },
-    }),
-  }
-
-  const orderBy =
-    sort === "price_asc" ? { price: "asc" as const } :
-    sort === "price_desc" ? { price: "desc" as const } :
-    { createdAt: "desc" as const }
-
   try {
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit, include: { category: true } }),
-      prisma.product.count({ where }),
-    ])
-    return { products, total, page, limit, totalPages: Math.ceil(total / limit) }
+    let categoryId: string | undefined
+    if (categorySlug) {
+      const { data: cat } = await supabaseAdmin
+        .from("Category")
+        .select("id")
+        .eq("slug", categorySlug)
+        .maybeSingle()
+      categoryId = cat?.id
+    }
+
+    let query = supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)", { count: "exact" })
+      .eq("isActive", true)
+
+    if (categoryId) query = query.eq("categoryId", categoryId)
+    if (inStock) query = query.gt("stock", 0)
+    if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+    if (minPrice) query = query.gte("price", Number(minPrice))
+    if (maxPrice) query = query.lte("price", Number(maxPrice))
+
+    if (sort === "price_asc") query = query.order("price", { ascending: true })
+    else if (sort === "price_desc") query = query.order("price", { ascending: false })
+    else query = query.order("createdAt", { ascending: false })
+
+    query = query.range((page - 1) * limit, page * limit - 1)
+
+    const { data: products, count } = await query
+    const total = count ?? 0
+    return { products: products ?? [], total, page, limit, totalPages: Math.ceil(total / limit) }
   } catch {
     return { products: [], total: 0, page: 1, limit, totalPages: 0 }
   }
 }
 
 async function getCategories() {
-  try { return await prisma.category.findMany({ orderBy: { name: "asc" } }) }
-  catch { return [] }
+  try {
+    const { data } = await supabaseAdmin
+      .from("Category")
+      .select("id, name, slug")
+      .order("name", { ascending: true })
+    return data ?? []
+  } catch { return [] }
 }
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -71,7 +72,6 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     getCategories(),
   ])
 
-  const sort = str(params.sort) ?? "newest"
   const currentPage = page
 
   function pageUrl(p: number) {

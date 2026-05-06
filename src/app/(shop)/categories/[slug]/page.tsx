@@ -1,22 +1,30 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import ProductGrid from "@/components/products/ProductGrid"
 
 async function getCategory(slug: string) {
   try {
-    return await prisma.category.findFirst({
-      where: { OR: [{ slug }, { id: slug }] },
-      include: {
-        products: {
-          where: { isActive: true },
-          orderBy: { createdAt: "desc" },
-          include: { category: true },
-        },
-      },
-    })
+    const { data: categories } = await supabaseAdmin
+      .from("Category")
+      .select("id, name, slug, description")
+      .or(`id.eq.${slug},slug.eq.${slug}`)
+      .limit(1)
+    return categories?.[0] ?? null
   } catch { return null }
+}
+
+async function getCategoryProducts(categoryId: string) {
+  try {
+    const { data } = await supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)")
+      .eq("categoryId", categoryId)
+      .eq("isActive", true)
+      .order("createdAt", { ascending: false })
+    return data ?? []
+  } catch { return [] }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -30,6 +38,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const { slug } = await params
   const category = await getCategory(slug)
   if (!category) notFound()
+
+  const products = await getCategoryProducts(category.id)
 
   return (
     <div className="bg-[#f9f6f1] min-h-screen">
@@ -49,10 +59,10 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
           {category.description && (
             <p className="mt-2 text-gray-500">{category.description}</p>
           )}
-          <p className="mt-1 text-sm text-gray-400">{category.products.length} produse</p>
+          <p className="mt-1 text-sm text-gray-400">{products.length} produse</p>
         </div>
 
-        <ProductGrid products={category.products} />
+        <ProductGrid products={products} />
       </div>
     </div>
   )

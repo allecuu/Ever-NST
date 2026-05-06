@@ -2,8 +2,7 @@
 
 import Link from "next/link"
 import { useCartStore } from "@/store/cart"
-
-const FREE_SHIPPING_THRESHOLD = 500
+import { FREE_SHIPPING_THRESHOLD } from "@/lib/utils"
 
 export default function CartSummary() {
   const { total, items } = useCartStore()

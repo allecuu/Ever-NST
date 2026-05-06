@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -21,22 +21,17 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      user: { select: { id: true, name: true, email: true, image: true } },
-      items: {
-        include: {
-          product: { select: { id: true, name: true, slug: true, images: true } },
-        },
-      },
-    },
-  })
+  const { data: order } = await supabaseAdmin
+    .from("Order")
+    .select("*, user:User(id, name, email, image), items:OrderItem(*, product:Product(id, name, slug, images))")
+    .eq("id", id)
+    .maybeSingle()
 
   if (!order) notFound()
 
-  const subtotal = order.items.reduce(
-    (sum, item) => sum + Number(item.price) * item.quantity,
+  const subtotal = (order.items ?? []).reduce(
+    (sum: number, item: { price: string | number; quantity: number }) =>
+      sum + Number(item.price) * item.quantity,
     0
   )
 
@@ -84,10 +79,15 @@ export default async function OrderDetailPage({
               <h2 className="font-semibold text-gray-900">Produse comandate</h2>
             </div>
             <div className="divide-y">
-              {order.items.map((item) => (
+              {(order.items ?? []).map((item: {
+                id: string
+                quantity: number
+                price: string | number
+                product: { name: string; images: string[] }
+              }) => (
                 <div key={item.id} className="p-6 flex items-center gap-4">
                   <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                    {item.product.images[0] ? (
+                    {item.product?.images?.[0] ? (
                       <Image
                         src={item.product.images[0]}
                         alt={item.product.name}
@@ -100,7 +100,7 @@ export default async function OrderDetailPage({
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">{item.product.name}</p>
+                    <p className="font-medium text-gray-900">{item.product?.name}</p>
                     <p className="text-sm text-gray-400">Cantitate: {item.quantity}</p>
                   </div>
                   <div className="text-right">
@@ -143,11 +143,11 @@ export default async function OrderDetailPage({
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"
                 style={{ backgroundColor: "#6B8E23" }}
               >
-                {(order.user.name ?? order.user.email ?? "?")[0].toUpperCase()}
+                {(order.user?.name ?? order.user?.email ?? "?")[0].toUpperCase()}
               </div>
               <div>
-                <p className="font-medium text-gray-900">{order.user.name ?? "—"}</p>
-                <p className="text-sm text-gray-400">{order.user.email}</p>
+                <p className="font-medium text-gray-900">{order.user?.name ?? "—"}</p>
+                <p className="text-sm text-gray-400">{order.user?.email}</p>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -12,12 +12,16 @@ export default async function EditProductPage({
 }) {
   const { id } = await params
 
-  const [raw, categoriesRaw] = await Promise.all([
-    prisma.product.findUnique({
-      where: { id },
-      include: { category: true },
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
+  const [{ data: raw }, { data: categoriesRaw }] = await Promise.all([
+    supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)")
+      .eq("id", id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("Category")
+      .select("id, name, slug, description, image, createdAt")
+      .order("name", { ascending: true }),
   ])
 
   if (!raw) notFound()
@@ -45,7 +49,7 @@ export default async function EditProductPage({
     updatedAt: raw.updatedAt,
   }
 
-  const categories: Category[] = categoriesRaw.map((c) => ({
+  const categories: Category[] = (categoriesRaw ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     slug: c.slug,

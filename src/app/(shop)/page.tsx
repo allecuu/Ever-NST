@@ -1,22 +1,28 @@
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { supabaseAdmin } from "@/lib/supabase"
 import ProductGrid from "@/components/products/ProductGrid"
 import { ArrowRight, Truck, RotateCcw, Headphones } from "lucide-react"
 
 async function getFeaturedProducts() {
   try {
-    return await prisma.product.findMany({
-      where: { isActive: true },
-      take: 4,
-      orderBy: { createdAt: "desc" },
-      include: { category: true },
-    })
+    const { data } = await supabaseAdmin
+      .from("Product")
+      .select("*, category:Category(*)")
+      .eq("isActive", true)
+      .order("createdAt", { ascending: false })
+      .limit(4)
+    return data ?? []
   } catch { return [] }
 }
 
 async function getCategories() {
   try {
-    return await prisma.category.findMany({ take: 6, orderBy: { name: "asc" } })
+    const { data } = await supabaseAdmin
+      .from("Category")
+      .select("id, name, slug, description")
+      .order("name", { ascending: true })
+      .limit(6)
+    return data ?? []
   } catch { return [] }
 }
 
@@ -110,7 +116,7 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {categories.slice(0, 6).map((cat: { id: string; name: string; slug: string; description?: string | null }) => (
+            {categories.map((cat) => (
               <Link key={cat.id} href={`/categories/${cat.slug}`}
                 className="group relative rounded-2xl overflow-hidden bg-white border border-gray-100 p-6 hover:border-[#6B8E23]/30 hover:shadow-md transition-all duration-200 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">{categoryIcons[cat.slug] ?? categoryIcons.default}</span>
