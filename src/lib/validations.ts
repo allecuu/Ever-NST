@@ -52,5 +52,18 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>
 export type CategoryInput = z.infer<typeof categorySchema>
 export type OrderInput = z.infer<typeof orderSchema>
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>
+export const blogPostSchema = z.object({
+  title: z.string().min(1),
+  slug: z.string().min(1),
+  excerpt: z.string().optional(),
+  content: z.string().min(1),
+  coverImage: z.string().optional(),
+  published: z.boolean().default(false),
+})
+
+export const blogPostUpdateSchema = blogPostSchema.partial()
+
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
+export type BlogPostInput = z.infer<typeof blogPostSchema>
+export type BlogPostUpdateInput = z.infer<typeof blogPostUpdateSchema>

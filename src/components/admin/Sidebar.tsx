@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
-import { LayoutDashboard, Package, Tag, ShoppingCart, LogOut, Menu, X } from "lucide-react"
+import { LayoutDashboard, Package, Tag, ShoppingCart, LogOut, Menu, X, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/products", label: "Produse", icon: Package, exact: false },
   { href: "/admin/categories", label: "Categorii", icon: Tag, exact: false },
   { href: "/admin/orders", label: "Comenzi", icon: ShoppingCart, exact: false },
+  { href: "/admin/blog", label: "Blog", icon: BookOpen, exact: false },
 ]
 
 function NavLinks({ onClose }: { onClose?: () => void }) {

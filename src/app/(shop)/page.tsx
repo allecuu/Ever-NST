@@ -1,7 +1,8 @@
 import Link from "next/link"
+import Image from "next/image"
 import { supabaseAdmin } from "@/lib/supabase"
 import ProductGrid from "@/components/products/ProductGrid"
-import { ArrowRight, Truck, RotateCcw, Headphones } from "lucide-react"
+import { ArrowRight, Truck, RotateCcw, Headphones, Calendar } from "lucide-react"
 
 async function getFeaturedProducts() {
   try {
@@ -11,6 +12,18 @@ async function getFeaturedProducts() {
       .eq("isActive", true)
       .order("createdAt", { ascending: false })
       .limit(4)
+    return data ?? []
+  } catch { return [] }
+}
+
+async function getLatestPosts() {
+  try {
+    const { data } = await supabaseAdmin
+      .from("BlogPost")
+      .select("id, title, slug, excerpt, coverImage, publishedAt, createdAt")
+      .eq("published", true)
+      .order("createdAt", { ascending: false })
+      .limit(3)
     return data ?? []
   } catch { return [] }
 }
@@ -43,7 +56,11 @@ const perks = [
 ]
 
 export default async function HomePage() {
-  const [products, categories] = await Promise.all([getFeaturedProducts(), getCategories()])
+  const [products, categories, blogPosts] = await Promise.all([
+    getFeaturedProducts(),
+    getCategories(),
+    getLatestPosts(),
+  ])
 
   return (
     <div className="bg-[#f9f6f1]">
@@ -147,6 +164,72 @@ export default async function HomePage() {
         </div>
         <ProductGrid products={products} emptyMessage="Produsele vor apărea după configurarea bazei de date." />
       </section>
+
+      {/* Blog preview */}
+      {blogPosts.length > 0 && (
+        <section className="bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+            <div className="flex items-end justify-between mb-10">
+              <div>
+                <p className="text-[#6B8E23] text-sm font-semibold uppercase tracking-wide mb-1">Inspirație</p>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900" style={{ fontFamily: "var(--font-poppins)" }}>
+                  Din blogul nostru
+                </h2>
+              </div>
+              <Link href="/blog" className="text-sm text-[#6B8E23] font-medium hover:underline flex items-center gap-1">
+                Toate articolele <ArrowRight size={14} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {blogPosts.map((post) => {
+                const date = new Date(post.publishedAt ?? post.createdAt).toLocaleDateString("ro-RO", {
+                  day: "2-digit", month: "long", year: "numeric",
+                })
+                return (
+                  <article key={post.id} className="group flex flex-col">
+                    <Link href={`/blog/${post.slug}`} className="block rounded-2xl overflow-hidden aspect-[16/9] bg-gray-100 relative mb-5 shadow-sm">
+                      {post.coverImage ? (
+                        <Image
+                          src={post.coverImage}
+                          alt={post.title}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full" style={{ background: "linear-gradient(135deg, #2F4F4F, #6B8E23)" }} />
+                      )}
+                    </Link>
+
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                      <Calendar size={12} />
+                      {date}
+                    </div>
+
+                    <Link href={`/blog/${post.slug}`}>
+                      <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2 line-clamp-2 group-hover:text-[#6B8E23] transition-colors"
+                        style={{ fontFamily: "var(--font-poppins)" }}>
+                        {post.title}
+                      </h3>
+                    </Link>
+
+                    {post.excerpt && (
+                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-4">{post.excerpt}</p>
+                    )}
+
+                    <Link
+                      href={`/blog/${post.slug}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6B8E23] hover:gap-2.5 transition-all mt-auto"
+                    >
+                      Citește articolul <ArrowRight size={13} />
+                    </Link>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
