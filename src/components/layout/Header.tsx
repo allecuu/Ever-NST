@@ -70,7 +70,7 @@ export default function Header() {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-6">
-              {[["Produse", "/products"], ["Categorii", "/categories"], ["Despre", "/about"], ["Contact", "/contact"]].map(
+              {[["Produse", "/products"], ["Despre", "/about"], ["Contact", "/contact"]].map(
                 ([label, href]) => (
                   <Link key={href} href={href}
                     className="text-sm font-medium text-gray-700 hover:text-[#6B8E23] transition-colors">

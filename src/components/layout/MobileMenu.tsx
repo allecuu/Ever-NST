@@ -15,7 +15,6 @@ type Props = {
 const navLinks = [
   { label: "Acasă", href: "/" },
   { label: "Produse", href: "/products" },
-  { label: "Categorii", href: "/categories" },
   { label: "Despre noi", href: "/about" },
   { label: "Contact", href: "/contact" },
 ]
